@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_notifications/message_screen.dart';
 
 class NotificationServices {
   FirebaseMessaging messaging = FirebaseMessaging.instance;
@@ -19,15 +21,23 @@ class NotificationServices {
         android: androidInitializationSettings, iOS: iosInitializationSettings);
     await _flutterLocalNotificationsPlugin.initialize(
       initilizationSetting,
-      onDidReceiveNotificationResponse: (payload) {},
+      onDidReceiveNotificationResponse: (payload) {
+        handleMessage(context, message);
+      },
     );
   }
 
-  void firebaseInit() {
+  void firebaseInit(BuildContext context) {
     FirebaseMessaging.onMessage.listen((message) {
       debugPrint(message.notification!.title.toString());
       debugPrint(message.notification!.body.toString());
-      showNotification(message);
+      debugPrint(message.data.toString());
+      if (Platform.isAndroid) {
+        initLocalNotification(context, message);
+        showNotification(message);
+      } else {
+        showNotification(message);
+      }
     });
   }
 
@@ -91,5 +101,32 @@ class NotificationServices {
       event.toString();
       debugPrint("Refresh ${event.toString()}");
     });
+  }
+
+// on clicking on notification when App is killed or background
+  Future<void> setupInteractMessage(BuildContext context) async {
+    // when App is terminated
+    RemoteMessage? message =
+        await FirebaseMessaging.instance.getInitialMessage();
+    if (message != null) {
+      handleMessage(context, message);
+    }
+
+    // when App is in Background
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      handleMessage(context, message);
+    });
+  }
+
+// on clicking on notification then move on next screen when app is running
+  void handleMessage(BuildContext context, RemoteMessage message) {
+    if (message.data['type'] == 'msg') {
+      Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (context) => MessageScreen(
+                    id: message.data['id'],
+                  )));
+    }
   }
 }
